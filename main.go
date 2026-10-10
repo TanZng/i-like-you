@@ -22,7 +22,7 @@ const (
 
 	SideDuration = 10.0
 	TrailSpacing = 30.0
-	MaxTrail     = 100
+	MaxTrail     = 55
 )
 
 var (
@@ -108,7 +108,8 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		b := uint8(float64(BackgroundColor.B) +
 			progress*(float64(TrailColor.B)-float64(BackgroundColor.B)))
 
-		c := color.RGBA{R: r, G: gc, B: b, A: 255}
+		a := uint8(float64(TrailColor.A) * progress)
+		c := color.RGBA{R: r, G: gc, B: b, A: a}
 
 		drawText(screen, p.x, p.y, c)
 	}
