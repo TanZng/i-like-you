@@ -7,7 +7,9 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
-	"golang.org/x/image/font/basicfont"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/gofont/goregular"
+	"golang.org/x/image/font/opentype"
 )
 
 // ==============================
@@ -15,34 +17,20 @@ import (
 // ==============================
 
 const (
-	ScreenWidth  = 500
-	ScreenHeight = 400
-
 	TextMessage = "i like you"
+	TextSize    = 24.0
 
-	// Seconds per complete heart loop.
 	SideDuration = 10.0
-
-	// Distance between trail copies.
-	TrailSpacing = 11.0
-
-	// Number of trail copies.
-	MaxTrail = 70
-
-	// Trail opacity range: 0 = transparent, 255 = opaque.
-	TrailStartOpacity = 100
-	TrailEndOpacity   = 10
-
-	// Heart position and size.
-	PathX    = 250.0
-	PathY    = 200.0
-	PathSize = 9.0
+	TrailSpacing = 30.0
+	MaxTrail     = 100
 )
 
 var (
 	BackgroundColor = color.RGBA{20, 20, 28, 255}
 	TextColor       = color.RGBA{255, 190, 220, 255}
 	TrailColor      = color.RGBA{255, 100, 170, 255}
+
+	textFace font.Face
 )
 
 type Point struct {
@@ -50,11 +38,13 @@ type Point struct {
 }
 
 type Game struct {
-	t       float64
-	trail   []Point
-	lastX   float64
-	lastY   float64
-	hasLast bool
+	t            float64
+	trail        []Point
+	lastX        float64
+	lastY        float64
+	hasLast      bool
+	screenWidth  int
+	screenHeight int
 }
 
 func (g *Game) Update() error {
@@ -64,7 +54,7 @@ func (g *Game) Update() error {
 		g.t -= 1
 	}
 
-	px, py := position(g.t)
+	px, py := position(g.t, g.screenWidth, g.screenHeight)
 
 	distance := math.Hypot(px-g.lastX, py-g.lastY)
 
@@ -82,21 +72,18 @@ func (g *Game) Update() error {
 	return nil
 }
 
-// Heart-shaped parametric path.
-func position(t float64) (float64, float64) {
+func position(t float64, w, h int) (float64, float64) {
 	angle := 2 * math.Pi * t
 
-	// Classic mathematical heart curve.
 	hx := 16 * math.Pow(math.Sin(angle), 3)
 	hy := 13*math.Cos(angle) -
 		5*math.Cos(2*angle) -
 		2*math.Cos(3*angle) -
 		math.Cos(4*angle)
 
-	// Scale and center the heart.
-	scale := PathSize
-	x := PathX + hx*scale
-	y := PathY - hy*scale
+	scale := math.Min(float64(w), float64(h)) / 45.0
+	x := float64(w)/2 + hx*scale
+	y := float64(h)/2 - hy*scale
 
 	return x, y
 }
@@ -126,28 +113,43 @@ func (g *Game) Draw(screen *ebiten.Image) {
 		drawText(screen, p.x, p.y, c)
 	}
 
-	// Main text remains bright and readable.
-	px, py := position(g.t)
+	px, py := position(g.t, g.screenWidth, g.screenHeight)
 	drawText(screen, px, py, TextColor)
 }
 
 func drawText(screen *ebiten.Image, x, y float64, c color.Color) {
+	bounds := font.MeasureString(textFace, TextMessage)
 	text.Draw(
 		screen,
 		TextMessage,
-		basicfont.Face7x13,
-		int(x)-30,
+		textFace,
+		int(x)-bounds.Round()/2,
 		int(y),
 		c,
 	)
 }
 
-func (g *Game) Layout(_, _ int) (int, int) {
-	return ScreenWidth, ScreenHeight
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	if g.screenWidth != outsideWidth || g.screenHeight != outsideHeight {
+		g.trail = nil
+		g.hasLast = false
+	}
+	g.screenWidth = outsideWidth
+	g.screenHeight = outsideHeight
+	return outsideWidth, outsideHeight
+}
+
+func init() {
+	tt, _ := opentype.Parse(goregular.TTF)
+	textFace, _ = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size: TextSize,
+		DPI:  72,
+	})
 }
 
 func main() {
-	ebiten.SetWindowSize(ScreenWidth*2, ScreenHeight*2)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
+	ebiten.SetWindowSize(1000, 800)
 	ebiten.SetWindowTitle("i like you")
 
 	if err := ebiten.RunGame(&Game{}); err != nil {
